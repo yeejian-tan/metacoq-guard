@@ -29,12 +29,12 @@ Arguments Param {_}.
 Arguments Node {_}.
 Arguments Rec {_}.
 
-Require Import List.
+From Stdlib Require Import List.
 Import ListNotations.
-Require Import Coq.Lists.ListSet.
-Require Import Coq.Arith.PeanoNat.
-From MetaCoq.Utils Require Import MCUtils.
-From MetaCoq.Guarded Require Import util.
+Require Import Stdlib.Lists.ListSet.
+Require Import Stdlib.Arith.PeanoNat.
+From MetaRocq.Utils Require Import MRUtils.
+From MetaRocq.Guarded Require Import util.
 
 (* TODO: proper exception handling with the except monad *)
 

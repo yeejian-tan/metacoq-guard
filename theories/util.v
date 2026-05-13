@@ -1,7 +1,7 @@
 (* Utility functions that are term/ast-oblivious.
   term/ast-related utils go to Inductive.v. *)
-From MetaCoq.Utils Require Import utils.
-From MetaCoq.Guarded Require Import Except.
+From MetaRocq.Utils Require Import utils.
+From MetaRocq.Guarded Require Import Except.
 
 Definition map2_i {A B C} (f : nat -> A -> B -> C) (a : list A) (b : list B) := 
   let map2' := fix rec a b n := 

@@ -1,24 +1,24 @@
-# Coq's guard checker implemented in MetaCoq
+# Rocq's guard checker implemented in MetaRocq
 
-This repository contains the guard checker of Coq implemented in Coq,
-using the MetaCoq project, as part of Yee-Jian Tan's M1 internship in Cambium, Inria Paris,
+This repository contains the guard checker of Rocq implemented in Rocq,
+using the MetaRocq project, as part of Yee-Jian Tan's M1 internship in Cambium, Inria Paris,
 supervised by Yannick Forster.
 
 ## Installation
 ```sh
-opam switch create metacoq-guard --packages="ocaml-variants.4.14.1+options,ocaml-option-flambda"
-eval $(opam env --switch=metacoq-guard)
-opam repo add coq-released https://coq.inria.fr/opam/released
-opam pin -n -y "https://github.com/MetaCoq/metacoq.git#v1.3.2-8.19"
-opam install coq-metacoq-template coq-metacoq-utils
+opam switch create MetaRocq-guard --packages="ocaml-variants.4.14.1+options,ocaml-option-flambda"
+eval $(opam env --switch=MetaRocq-guard)
+opam repo add rocq-released https://rocq.inria.fr/opam/released
+opam pin -n -y "https://github.com/MetaRocq/MetaRocq.git#v1.3.2-8.19"
+opam install rocq-MetaRocq-template rocq-MetaRocq-utils
 make -j
 ```
 
 ## Usage
 
-```coq
-From MetaCoq.Guarded Require Import plugin.
-From MetaCoq Require Import Utils.bytestring.
+```rocq
+From MetaRocq.Guarded Require Import plugin.
+From MetaRocq Require Import Utils.bytestring.
 
 Open Scope bs.
 
@@ -29,12 +29,12 @@ Fixpoint add (m n : nat) : nat :=
   | S m' => add m' (S n)
   end.
 
-MetaCoq Run (check_fix add).
+MetaRocq Run (check_fix add).
 (* accepts a boolean flag on the expected guardedness. *)
-MetaCoq Run (check_fix_ci true add).
+MetaRocq Run (check_fix_ci true add).
 ```
 
 ## Credits
 
-This project is based on https://github.com/lgaeher/metacoq/blob/guarded/README_project.md.
+This project is based on https://github.com/lgaeher/MetaRocq/blob/guarded/README_project.md.
 
