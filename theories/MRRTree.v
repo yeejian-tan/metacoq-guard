@@ -32,7 +32,7 @@ Arguments Rec {_}.
 From Stdlib Require Import List.
 Import ListNotations.
 Require Import Stdlib.Lists.ListSet.
-Require Import Stdlib.Arith.PeanoNat.
+From Stdlib.Arith Require Import PeanoNat.
 From MetaRocq.Utils Require Import MRUtils.
 From MetaRocq.Guarded Require Import util.
 

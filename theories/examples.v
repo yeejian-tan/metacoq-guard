@@ -1,6 +1,6 @@
-Require Import MetaRocq.Guarded.plugin. 
+From MetaRocq.Guarded Require Import plugin. 
 
-Require Import List.
+From Stdlib Require Import List.
 Import ListNotations.
 
 (* for printing of rtrees *)
@@ -497,7 +497,7 @@ constructor. constructor.
 Qed. *)
 
 
-Require Import Vector.
+From Stdlib.Vectors Require Import Vector.
 
 #[bypass_check(guard)]
 Fixpoint map2 {A B C : Type} (f : A -> B -> C) (n : nat) (v1 : t A n) (v2 : t B n)

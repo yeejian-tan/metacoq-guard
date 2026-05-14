@@ -413,7 +413,7 @@ Definition fold_term_with_binders {A B : Type} (g : A -> A)
   (f : A -> B -> term -> B) (n : A) (acc : B) (c : term) :=
   match c with
   | (tRel _ | tVar _   | tSort _ | tConst _ _ | tInd _ _
-    | tConstruct _ _ _ | tInt _ | tFloat _) => acc
+    | tConstruct _ _ _ | tInt _ | tFloat _ | tString _) => acc
   | tCast c _ t => f n (f n acc c) t
   | tProd _na t c => f (g n) (f n acc t) c
   | tLambda  _na t c => f (g n) (f n acc t) c
@@ -514,7 +514,7 @@ Definition map_with_binders {A B : Type} (g : A -> A)
   (f : A -> term -> term) (l : A) (c0 : term) : term :=
   match c0 with
   | (tRel _ | tVar _   | tSort _ | tConst _ _ | tInd _ _
-    | tConstruct _ _ _ | tInt _ | tFloat _ ) => c0
+    | tConstruct _ _ _ | tInt _ | tFloat _ | tString _) => c0
 
   | tCast c k t =>
     let c' := f l c in
@@ -579,6 +579,7 @@ Definition map_with_binders {A B : Type} (g : A -> A)
     else tArray u arr' def' ty'
   end.
 
+Locate fold_term_with_binders.
 (** check if a de Bruijn index in range 
     n ... n + num -1 
   occurs in t *)
