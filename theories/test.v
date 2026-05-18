@@ -56,7 +56,7 @@ Definition res :=
 
 (* From ReductionEffect Require Import PrintingEffect. *)
 
-Definition failure := fun _UNBOUND_REL_3 =>
+(* Definition failure := fun _UNBOUND_REL_3 =>
   (String.String " "
    (String.String " "
       (String.String "s"
@@ -755,12 +755,12 @@ Definition failure := fun _UNBOUND_REL_3 =>
                                                  end) a :: map t)%list
                                            end) _UNBOUND_REL_3)))))))))))))).
 About failure.
-Eval lazy in failure [].
+Eval lazy in failure []. *)
 
-Require Import List.
+From Stdlib Require Import List.
 
 Require Import Extraction.
-From Rocq Require Import Ascii FSets ExtrOcamlBasic ExtrOCamlFloats ExtrOCamlInt63.
+From Stdlib Require Import Ascii FSets ExtrOcamlBasic ExtrOCamlFloats ExtrOCamlInt63.
 
 Extract Constant printf => "fun x -> print_endline (Obj.magic x) ; x".
 

@@ -1,7 +1,7 @@
 From MetaRocq.Common Require Import Environment.
 From MetaRocq.Template Require Import Ast AstUtils All.
 Open Scope string_scope.
-Require Import List String.
+From Stdlib Require Import List String.
 Import ListNotations.
 Open Scope string_scope.
 From MetaRocq.Utils Require Import MRList.
@@ -46,7 +46,7 @@ Definition check_inductive_mib (Σ:global_env_ext) (kn : kername) (mib : mutual_
 
 (** Positivity checker *)
 Definition check_inductive {A} (def : option ident) (a : A) : TemplateMonad unit := 
-  mlet '(Σ', t) <- tmQuoteRec a;;
+  '(Σ', t) <- tmQuoteRec a;;
   let Σ := (Σ', Monomorphic_ctx) in
   match t with
   | tInd ind _ => 

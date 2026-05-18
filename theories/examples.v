@@ -289,8 +289,7 @@ Fixpoint test (l : list nat) :=
 MetaRocq Run (check_fix_ci true test). 
 
 
-
-Module wo.
+(* Module wo.
   Variable p: nat -> Prop.
   Variable p_dec: forall n, (p n) + ~(p n).
 
@@ -305,7 +304,7 @@ Module wo.
       end.
 
 MetaRocq Run (check_fix_ci true W').
-End wo.
+End wo. *)
 
 
 
@@ -313,7 +312,7 @@ End wo.
 (** Vectors *)
 Set Implicit Arguments.
 Set Asymmetric Patterns.
-Require Rocq.Vectors.Vector.
+From Stdlib.Vectors Require Vector.
 
 (** Taken from  https://github.com/rocq/rocq/issues/4320 *)
 
@@ -326,7 +325,7 @@ whose elements depend on their keys. The data structures used
 by our ADT notations uses these to implement notation-friendly
 method lookups. *)
 
-Import Rocq.Vectors.VectorDef.VectorNotations.
+Import Stdlib.Vectors.VectorDef.VectorNotations.
 
 Context {A : Type}. (* The indexing type. *)
 Context {B : A -> Type}. (* The type of indexed elements. *)

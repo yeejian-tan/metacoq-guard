@@ -1227,7 +1227,7 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
           z_tree <- stack_element_specif Σ ρ z;;
           trace $ "  result: "^print_subterm_spec Σ z_tree ;;
           trace "checking if arg is a strict subterm via rtree_incl" ;;
-          result <- check_is_subterm z_tree recarg_tree;;
+          let result := check_is_subterm z_tree recarg_tree in
           trace $ "  result: "^print_check_subterm_result result ;;
           let guard_err : fix_guard_error := illegal_rec_call G decreasing_arg z in
           match result with
@@ -1326,7 +1326,7 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
         | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ =>
             raise $ OtherErr "check_rec_call_stack :: tCase" "malformed term"
         | tRel _ | tVar _ | tConst _ _ | tApp _ _ | tCase _ _ _ _ | tFix _ _
-        | tProj _ _ | tCast _ _ _ | tEvar _ _ =>
+        | tProj _ _ | tCast _ _ _ | tEvar _ _ | tString _ =>
             raise NoReductionPossible
         end) ;;
         trace "done checking case" ;;
@@ -1399,7 +1399,7 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
           | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ =>
               raise $ OtherErr "check_rec_call_stack :: tCase" "malformed term"
           | tRel _ | tVar _ | tConst _ _ | tApp _ _ | tCase _ _ _ _ | tFix _ _
-          | tProj _ _ | tCast _ _ _ | tEvar _ _ =>
+          | tProj _ _ | tCast _ _ _ | tEvar _ _ | tString _ =>
               raise NoReductionPossible
           end
         end)
@@ -1429,9 +1429,9 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
       check_rec_call_stack (push_var_guard_env G (redex_level rs) x ty) [] rs' body
 
   | tCoFix mfix_inner fix_ind => 
-      let rs := fold_left
+      rs <- fold_left
         (fun rs t => rs <- rs ;; check_inert_subterm_rec_call G rs t)
-        (map dtype mfix_inner) (ret rs) in
+        (map dtype mfix_inner) (ret rs) ;;
       let G' := push_fix_guard_env G mfix_inner in
       fold_left (fun rs body =>
           rs <- rs ;;
@@ -1462,7 +1462,7 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
             arg <- except (IndexErr "check_rec_call_stack" "index out of range" i) $ nth_error args i ;;
             ret (arg, [])
         | tCoFix _ _ | tInd _ _ | tLambda _ _ _ | tProd _ _ _ | tLetIn _ _ _ _
-        | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ =>
+        | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ | tString _ =>
             raise $ OtherErr "check_rec_call_stack :: tCase" "malformed term"
         | tRel _ | tVar _ | tConst _ _ | tApp _ _ | tCase _ _ _ _ | tFix _ _
         | tProj _ _ | tCast _ _ _ | tEvar _ _ =>
@@ -1496,7 +1496,7 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
       rs <- check_inert_subterm_rec_call G rs t ;;
       check_rec_call_stack G stack rs c
 
-  | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ => ret rs
+  | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ | tString _ => ret rs
 
   | tEvar _ _ => ret rs
   end

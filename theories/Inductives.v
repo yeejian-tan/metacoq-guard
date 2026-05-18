@@ -579,7 +579,6 @@ Definition map_with_binders {A B : Type} (g : A -> A)
     else tArray u arr' def' ty'
   end.
 
-Locate fold_term_with_binders.
 (** check if a de Bruijn index in range 
     n ... n + num -1 
   occurs in t *)
