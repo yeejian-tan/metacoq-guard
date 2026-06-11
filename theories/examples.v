@@ -289,9 +289,9 @@ Fixpoint test (l : list nat) :=
 MetaRocq Run (check_fix_ci true test). 
 
 
-(* Module wo.
-  Variable p: nat -> Prop.
-  Variable p_dec: forall n, (p n) + ~(p n).
+Module wo.
+  Axiom p: nat -> Prop.
+  Axiom p_dec: forall n, (p n) + ~(p n).
 
   Inductive T (n: nat) : Prop := C (phi: ~p n -> T (S n)).
 
@@ -304,7 +304,7 @@ MetaRocq Run (check_fix_ci true test).
       end.
 
 MetaRocq Run (check_fix_ci true W').
-End wo. *)
+End wo.
 
 
 
