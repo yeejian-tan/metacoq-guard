@@ -1,8 +1,7 @@
 From MetaRocq.Utils Require Import MRUtils bytestring.
 From MetaRocq.Guarded Require Import Except util.
-From Stdlib Require Import List.
-
-From Stdlib Require Import BinNat.
+From Stdlib Require Import List BinNat.
+Import ListNotations.
 
 Definition TIMEOUT_TIME := 3000%N.
 Definition TIMEOUT := false.
@@ -29,7 +28,7 @@ Section trace.
                         * list trace_info (* trace *)
                         * excOn Y A.
   
-  Open Scope nat_scope.
+  Open Scope N_scope.
   (* max steps handling is not totally accurate as we cannot pass the current number of steps into the function in bind, but anyways *)
   Instance trace_monad : Monad TraceM :=
     {|

@@ -412,49 +412,251 @@ Fixpoint f (n : nat) :=
   | S n => (if B as b return if b then nat -> nat else unit then fun n => f n else tt) n
   end.
 
-End WithLateCaseReduction.
+End WithLateCaseReduction. 
+
+Module NtnInteractiveFixpoint.
+
+Reserved Notation "# n" (at level 2, right associativity).
+Fixpoint f (n:nat) : nat where "# n" := (f n).
+exact (match n with 0 => 0 | S n => # n end).
+Defined.
+Check eq_refl : # 0 = f 0.
+
+End NtnInteractiveFixpoint.
+
+Module NoArgumentFixpoint.
+
+Fail Fixpoint f : nat. (* was an anomaly at some time *)
+
+End NoArgumentFixpoint.
+
+(* Module FixpointRelevance.
+
+(* Check that the recursive reference to a fixpoint name has correct
+   relevance, in different execution paths *)
+
+Inductive STrue : SProp := SI.
+Inductive seq (a:STrue) : STrue -> SProp := srefl : seq a a.
+Fixpoint g1 (n:nat) : STrue :=
+  match n with
+  | 0 => SI
+  | S n => let x := srefl (g1 n) : seq (g1 n) (g2 n) in g2 n
+  end
+with g2 (n:nat) : STrue :=
+  match n with
+  | 0 => SI
+  | S n => let x := srefl (g1 n) : seq (g1 n) (g2 n) in g1 n
+  end.
+Fixpoint h1 (n:nat) : STrue with h2 (n:nat) : STrue.
+exact
+ (match n with
+  | 0 => SI
+  | S n => let x := srefl (h1 n) : seq (h1 n) (h2 n) in h2 n
+  end).
+exact
+ (match n with
+  | 0 => SI
+  | S n => let x := srefl (h1 n) : seq (h1 n) (h2 n) in h1 n
+  end).
+Defined.
+Theorem k1 (n:nat) : STrue with k2 (n:nat) : STrue.
+exact
+ (match n with
+  | 0 => SI
+  | S n => let x := srefl (k1 n) : seq (k1 n) (k2 n) in k2 n
+  end).
+exact
+ (match n with
+  | 0 => SI
+  | S n => let x := srefl (k1 n) : seq (k1 n) (k2 n) in k1 n
+  end).
+Defined.
+
+End FixpointRelevance. *)
+
+Module ClearFixBody.
+
+CoInductive Stream : Set := Cons : nat -> Stream -> Stream.
+
+Section S.
+#[clearbody] Let CoFixpoint f : Stream := Cons 1 f.
+#[clearbody] Let Fixpoint g n := match n with 0 => 0 | S n => g n end.
+Goal True.
+Fail Check eq_refl : f = cofix f := Cons 1 f.
+Fail Check eq_refl : g = fix g n := match n with 0 => 0 | S n => g n end.
+Abort.
+End S.
+
+End ClearFixBody.
+
+Module TheoremWithUnivs.
+
+Fail Fixpoint f@{u} (n:nat) : nat with g@{v} (n:nat) : nat.
+Fail Theorem f@{u} (n:nat) : nat with g@{v} (n:nat) : nat.
+Fail CoFixpoint f@{u} (n:nat) : Stream 0 with g@{v} (n:nat) : Stream 0.
+Succeed Fixpoint f@{u} (n:nat) : nat with g@{u} (n:nat) : nat.
+Succeed Theorem f@{u} (n:nat) : nat with g@{u} (n:nat) : nat.
+Succeed CoFixpoint f@{u} (n:nat) : Stream 0 with g@{u} (n:nat) : Stream 0.
+Succeed Fixpoint f@{u} (n:nat) : nat with g (n:nat) : nat. (* Accepted *)
+Succeed Theorem f@{u} (n:nat) : nat with g (n:nat) : nat. (* Accepted *)
+Succeed CoFixpoint f@{u} (n:nat) : Stream 0 with g (n:nat) : Stream 0. (* Accepted *)
+
+End TheoremWithUnivs.
+
+Module DependMutualFix.
+
+Inductive tree (A : Type) := Node : A -> list (tree A) -> tree A.
+
+Definition lmap' {A B} (f : A -> B) : list A -> list B :=
+fix F l :=
+match l with
+| nil => nil
+| cons x l => cons (f x) (G l)
+end
+with G l :=
+match l with
+| nil => nil
+| cons x l => cons (f x) (F l)
+end for F.
+
+(* Not yet able to accept this *)
+Fail Fixpoint map {A B} (f : A -> B) (t : tree A) {struct t} : tree B :=
+match t with
+| Node _ x l => Node _ (f x) (lmap' (map f) l)
+end.
+
+End DependMutualFix.
+
+(* YJ: takes really long and a lot of memory *)
+(* Module Wish16040.
+
+Inductive tree (A : Type) := Node : A -> list (tree A) -> tree A.
+
+Fixpoint lmap {A B} (f : A -> B) (l : list A) : list B :=
+match l with
+| nil => nil
+| cons x l => cons (f x) (lmap f l)
+end.
+
+Fixpoint map {A B} (f : A -> B) (t : tree A) {struct t} : tree B :=
+match t with
+| Node _ x l => Node _ (f x) (lmap (map f) l)
+end.
+
+(* Check that we don't find too much uniform parameters *)
+
+Fixpoint lmap' {A} (f g : A -> A) (l : list A) : list A :=
+match l with
+| nil => nil
+| cons x l => cons (f x) (lmap' g f l)
+end.
+
+(* Not supposed to be detected guarded, as only A is uniform in lmap' *)
+Fail Fixpoint map' {A} (f : A -> A) (t : tree A) {struct t} : tree A :=
+match t with
+| Node _ x l => Node _ (f x) (lmap' (map' f) (map' f) l)
+end.
+
+(* Uniform arguments after a non-uniform one *)
+
+Fixpoint lmap'' {A} n (f : A -> A) (l : list A) : list A :=
+match l with
+| nil => nil
+| cons x l => cons (f x) (lmap'' (S n) f l)
+end.
+
+(* The current guard supports extrusion of uniform arguments only in prefix position *)
+Fail Fixpoint map'' {A} (f : A -> A) (t : tree A) {struct t} : tree A :=
+match t with
+| Node _ x l => Node _ (f x) (lmap'' 0 (map'' f) l)
+end.
+
+End Wish16040. *)
+
+Module TheoremWith.
+
+CoInductive Stream : Set := Cons : nat -> Stream -> Stream.
+
+(* Support for mutually recursive theorems in non-mutual types *)
+Theorem a : Stream with b : Stream.
+Proof.
+apply (Cons 0), b.
+apply (Cons 0), a.
+Defined.
+
+Theorem c (n:nat) : Stream with d (n:nat) : Stream. (* corecursive *)
+Proof.
+apply (Cons n), (d n).
+apply (Cons n), (c n).
+Defined.
+
+Theorem c' (n:nat) : Stream with d' (n:nat) : Stream. (* recursive *)
+Proof.
+destruct n as [|n']. apply a. apply (d' n').
+destruct n as [|n']. apply a. apply (c' n').
+Defined.
+
+End TheoremWith.
+
+(* Module HighlyNested.
+
+Inductive T A := E : A * list A * list (list A) -> T A.
+Inductive U := H : T (T U) -> U.
+
+Definition map {A B : Type} (f : A -> B) :=
+  fix map (l : list A) : list B :=
+  match l with
+  | nil => nil
+  | cons a t => cons (f a) (map t)
+  end.
+
+Definition mapT {A B} (f:A -> B) t :=
+  match t with E _ (a, l, ll) => E _ (f a, map f l, map (map f) ll) end.
+
+Fixpoint mapU (f:U->U) u :=
+  match u with
+  | H t => H (mapT (mapT (mapU f)) t)
+  end.
+
+End HighlyNested. *)
+
+(* Module TestIntersection.
+
+(* This example used to stress rtree.inter (3 nested types) *)
+
+Inductive Pmap_ne (A : Type) :=
+| PNode010 : A -> Pmap_ne A
+| PNode110 : Pmap_ne A -> A -> Pmap_ne A.
+Arguments PNode010 {A} _ : assert.
+Arguments PNode110 {A} _ _ : assert.
+
+Variant Pmap (A : Type) := PEmpty : Pmap A | PNodes : Pmap_ne A -> Pmap A.
+Arguments PEmpty {A}.
+Arguments PNodes {A} _.
+
+Definition Pmap_ne_case {A B} (t : Pmap_ne A) (f : Pmap A -> option A -> Pmap A -> B) : B :=
+  match t with
+  | PNode010 x => f PEmpty (Some x) PEmpty
+  | PNode110 l x => f (PNodes l) (Some x) PEmpty
+  end.
+Definition Pmap_fold_aux {A B} (go : B -> Pmap_ne A -> B) (y : B) (mt : Pmap A) : B :=
+  match mt with PEmpty => y | PNodes t => go y t end.
+Definition Pmap_ne_fold {A B} (f : A -> B -> B) : B -> Pmap_ne A -> B :=
+  fix go y t :=
+    Pmap_ne_case t (fun ml mx mr => Pmap_fold_aux go
+      (Pmap_fold_aux go match mx with None => y | Some x => f x y end ml) mr).
+Definition Pmap_fold {A} {B} (f : A -> B -> B) := Pmap_fold_aux (Pmap_ne_fold f).
+
+Inductive test := Test : Pmap test -> test.
+Fixpoint test_size (t : test) : nat :=
+  let 'Test ts := t in S (Pmap_fold (fun t' => plus (test_size t')) 0%nat ts).
+
+End TestIntersection. *)
 
 End CheckAll.
-
-Module FailAll.
-
-Unset Guard Checking.
-
-Fixpoint PreParadox (u : unit) : False := PreParadox u.
-
-Inductive I : Prop :=
-| C: (forall P:Prop, P->P) -> I.
-
-Definition i0 := C (fun _ x => x).
-
-(* Definition Paradox : False := *)
-(*   (fix ni i : False := *)
-(*      match i with *)
-(*      | C f => ni (f _ i) *)
-(*      end) i0. *)
-
-Inductive IMP : Prop :=
-  CIMP : (forall A:Prop, A->A) -> IMP
-| LIMP : (nat->IMP)->IMP.
-
-Definition i0_ := (LIMP (fun _ => CIMP (fun _ x => x))).
-
-(* Definition Paradox_ : False := *)
-(*   (fix F y o {struct o} : False := *)
-(*      match y with *)
-(*      | tt => fun f => *)
-(*                match f 0 with *)
-(*                | CIMP h => F y (h _ o) *)
-(*                | _ => F y (f 0) *)
-(*                end *)
-(*      end match o with LIMP f => f | _ => fun _ => o end) tt i0_. *)
-
-End FailAll.
 
 Require Import MetaRocq.Guarded.plugin.
 Require Import MetaRocq.Utils.bytestring.
 Open Scope bs.
 
 MetaRocq Run (check_module "CheckAll").
-(* MetaRocq Run (check_fix CheckAll.NestedApplicationsWithVariables.f). *)
-(* MetaRocq Run (check_module "FailAll"). *)

@@ -118,7 +118,7 @@ Definition print_size s :=
 
 Definition print_subterm_spec Σ (s : subterm_spec) :=
   match s with 
-  | Subterm l s paths => "Subterm "^(print_natset l)^" " ++ print_size s ++ " (" ++ print_wf_paths Σ paths ++ ")"
+  | Subterm l s paths => "Subterm "^(print_natset l)^" " ++ print_size s (*++ " (" ++ print_wf_paths Σ paths ++ ")"*)
   | Dead_code => "Dead_code"
   | Not_subterm => "Not_subterm"
   | Internally_bound_subterm l => "IB "^(print_natset l)
@@ -345,12 +345,13 @@ Inductive fix_check_result :=
   | NeedReduce (Γ : context) (e : fix_guard_error)
   | NoNeedReduce.
 
-Definition print_rs Σ rs :=
-  let print_fcr fcr := match fcr with
-  | NeedReduce Γ e => "Need "^print_context Σ Γ
+Definition print_fix_check_result Σ fcr :=
+  match fcr with
+  | NeedReduce Γ e => "Need"
   | NoNeedReduce => "NoNeed"
-  end
-  in String.concat "|" (map print_fcr rs).
+  end.
+
+Definition print_rs Σ := print_list (print_fix_check_result Σ) "|".
 
 Inductive stack_element := 
   (* Arguments in the evaluation stack.
@@ -365,8 +366,8 @@ Inductive stack_element :=
 (** Print stack elements *)
 Definition print_stack_element Σ z := 
   match z with 
-  | SClosure _ G _ t => "SClosure " ++ (print_term Σ G.(loc_env) t)
-  | SArg s => "SArg " ++ print_subterm_spec Σ s
+  | SClosure fcr G _ t => "SClosure "^print_fix_check_result Σ fcr^" "^(print_term Σ G.(loc_env) t)
+  | SArg s => "SArg "^print_subterm_spec Σ s
   end.
 
 Definition print_stack Σ stack := String.concat "|" (map (print_stack_element Σ) stack).
@@ -824,7 +825,9 @@ Definition restrict_spec_for_match Σ ρ Γ spec (rtf : term) : exc subterm_spec
 *)
 #[bypass_check(guard)]
 Fixpoint subterm_specif Σ ρ G (stack : list stack_element) t {struct t}: exc subterm_spec:= 
+  trace $ "subterm specif "^print_term Σ G.(loc_env) t ;;
   t_whd <- whd_all Σ G.(loc_env) t;;
+  trace $ "after whd_all: "^print_term Σ G.(loc_env) t_whd ;;
   let '(f, l) := decompose_app t_whd in 
   match f with 
   | tRel k => 
@@ -905,10 +908,11 @@ Fixpoint subterm_specif Σ ρ G (stack : list stack_element) t {struct t}: exc s
           let G'' := update_guard_spec G'' 1 arg_spec in 
           subterm_specif Σ ρ G'' [] body'
   | tLambda x ty body => 
-     assert (l == []) (OtherErr "subterm_specif" "reduction is broken");;
-     (** get the subterm spec of what the lambda would be applied to (or Not_subterm if [stack] is empty)*)
-     '(spec, stack') <- extract_stack_hd Σ ρ stack;;
-     subterm_specif Σ ρ (push_var G (x, ty, spec)) stack' body 
+      trace "subterm specif :: tLambda" ;;
+      assert (l == []) (OtherErr "subterm_specif" "reduction is broken");;
+      (** get the subterm spec of what the lambda would be applied to (or Not_subterm if [stack] is empty)*)
+      '(spec, stack') <- extract_stack_hd Σ ρ stack;;
+      subterm_specif Σ ρ (push_var G (x, ty, spec)) stack' body 
   | tEvar _ _ => 
       (* evars are okay *)
       ret Dead_code
@@ -950,8 +954,6 @@ with extract_stack_hd Σ ρ stack {struct stack} : exc (subterm_spec * list stac
       ret (spec, stack)
   end.
 
-
-
 Definition set_iota_specif (nr : nat) spec := match spec with
   | Not_subterm => if Nat.leb 1 nr then Internally_bound_subterm (Natset.singleton nr) else Not_subterm
   | spec => spec
@@ -976,6 +978,7 @@ Definition illegal_rec_call G fixpt elt := match elt with
 
 Definition set_need_reduce_one Γ nr err rs := update_list rs (#|rs| - nr) (NeedReduce Γ err).
 
+(* FIXME: Worst case is quadratic. should sort [l] and iterate. *)
 Definition set_need_reduce Γ l err rs := Natset.fold (fun n => set_need_reduce_one Γ n err) l rs.
 
 Definition set_need_reduce_top Γ err rs := set_need_reduce_one Γ (List.length rs) err rs.
@@ -1143,6 +1146,13 @@ Definition filter_fix_stack_domain (nr decrarg : nat) stack nuniformparams : lis
     end
   in aux 0 nuniformparams stack.
 
+(** Pops the top of "stack", [elt], which is an argument, into the context G.
+  2 sources to request for reduction: from [needreduce] and it's status in stack.
+  [needreduce]: inert call: noneed. binder in tlambda: depend on its type.
+  status in stack: SClosure: specified. SArg: noneed.
+  
+  When need to reduce, specify it and push as let.
+  If needed in both needreduce and stack, subst *)
 Definition pop_argument Σ ρ needreduce G elt stack (x : aname) (a b : term)
   : exc (guard_env * list (stack_element) * term) :=
   match needreduce, elt with
@@ -1198,11 +1208,14 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
   match t with 
   | tApp f args =>
       trace "check_rec_call_stack :: tApp" ;;
+      let msg := "checking "^string_of_nat #|args|^" arguments applied to "^print_term Σ G.(loc_env) f in
+      trace msg ;;
       '(rs', stack') <- fold_right (fun arg rs_stack =>
           '(rs, stack) <- rs_stack ;;
           '(needreduce, rs') <- check_rec_call G rs arg ;;
           let stack' := push_stack_closure G needreduce arg stack in
           ret (rs', stack')) (ret (rs, stack)) args ;;
+      trace $ "done "^msg ;;
       check_rec_call_stack G stack' rs' f
 
   | tRel p =>
@@ -1218,6 +1231,8 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
         in
         let g (z : stack_element) : exc (list fix_check_result) :=
           (** get the tree for the recursive argument type *)
+          trace "getting wf_paths for recarg on stack succeeded. printed below:";;
+          trace $ print_stack_element Σ z ;;
           trace "getting wf_paths for recursive param" ;;
           recarg_tree <- except
             (IndexErr "check_rec_call_stack" "no tree for the recursive argument" rec_fixp_index)
@@ -1236,9 +1251,11 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
           end
         in
         catchMap z_exc
-          (fun _exc => ret $ set_need_reduce_top G.(loc_env) (NotEnoughArgumentsForFixCall decreasing_arg) rs)
+          (fun _exc => trace "getting wf_paths for recarg on stack failed. setting needreduce" ;;
+            ret $ set_need_reduce_top G.(loc_env) (NotEnoughArgumentsForFixCall decreasing_arg) rs)
           g
       else
+        trace "tRel does not refer to a fixpoint. check if stack needs reduction" ;;
         check_rec_call_state G NoNeedReduce stack rs (fun _ =>
           entry <- except (IndexErr "check_rec_call" ("dB index out of range"^print_context Σ G.(loc_env))p) $ nth_error G.(loc_env) p;;
           (* except (OtherErr "check_rec_call_stack :: tRel" "found assumption instead of definition") $ option_map (fun t => (lift0 p t, [])) entry.(decl_body) *)
@@ -1323,10 +1340,10 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
             c' <- apply_branch Σ G.(loc_env) ind idx args ci branches ;;
             ret (c', [])
         | tCoFix _ _ | tInd _ _ | tLambda _ _ _ | tProd _ _ _ | tLetIn _ _ _ _
-        | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ =>
-            raise $ OtherErr "check_rec_call_stack :: tCase" "malformed term"
+        | tSort _ | tInt _ | tFloat _ | tArray _ _ _ _ | tString _ =>
+            raise $ OtherErr "check_rec_call_stack :: tCase" "whd_all is broken"
         | tRel _ | tVar _ | tConst _ _ | tApp _ _ | tCase _ _ _ _ | tFix _ _
-        | tProj _ _ | tCast _ _ _ | tEvar _ _ | tString _ =>
+        | tProj _ _ | tCast _ _ _ | tEvar _ _ =>
             raise NoReductionPossible
         end) ;;
         trace "done checking case" ;;
@@ -1364,14 +1381,15 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
       let nuniformparams := find_uniform_parameters (map rarg mfix_inner) #|stack| bodies in
       let bodies := drop_uniform_parameters nuniformparams bodies in
       let fix_stack := filter_fix_stack_domain (redex_level rs) decrArg stack nuniformparams in
-      let fix_stack := if Nat.ltb decrArg (List.length stack) then List.firstn (decrArg+1) fix_stack else fix_stack in
+      let fix_stack := if Nat.ltb decrArg (List.length stack) then List.firstn (S decrArg) fix_stack else fix_stack in
       let stack_this := lift_stack nbodies fix_stack in
       let stack_others := lift_stack nbodies (List.firstn nuniformparams fix_stack) in
       (* Check guard in the expanded fix *)
       rs' <- fold_left2_i (fun j rs' recindx body =>
           rs' <- rs' ;;
           let fix_stack := if fix_ind == j then stack_this else stack_others in
-          check_nested_fix_body G' (S recindx) fix_stack rs' body)
+          (* FIXME: possible db error *)
+          check_nested_fix_body G' recindx fix_stack rs' body)
         (map rarg mfix_inner) bodies (ret rs') ;;
       needreduce_fix <- except (IndexErr "check_rec_call_stack :: tFix" "" 0) $ hd rs' ;;
       rs <- except (IndexErr "check_rec_call_stack :: tFix" "" 0) $ tl rs' ;;
@@ -1408,8 +1426,7 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
       check_rec_call_state G NoNeedReduce stack rs (fun _ =>
         match lookup_constant Σ kn with
         | Some {| cst_body := Some b |} => ret (subst_instance u b, [])
-        (* | _ => raise (EnvErr "constant" kn "not found") *)
-        | _ => raise NoReductionPossible
+        | _ => raise (EnvErr "constant" kn "not found")
         end
         )
 
@@ -1419,9 +1436,22 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
       let '(needreduce, rs) := res in
       match stack with
       | elt :: stack =>
+          trace "popping the bound variable (and its spec from the stack) into the guard env" ;;
+          trace ("  Γ:"^print_context Σ G.(loc_env)) ;;
+          trace ("  Γg:"^print_guarded_env Σ G.(guarded_env)) ;;
+          trace ("  stack("^(string_of_nat #|stack|)^"): "^print_stack Σ stack) ;;
+          trace ("  rs("^(string_of_nat #|rs|)^"): "^print_rs Σ rs) ;;
           '(G, stack, body) <- pop_argument Σ ρ needreduce G elt stack x ty body ;;
+          trace "after pop_argument" ;;
+          trace ("  Γ:"^print_context Σ G.(loc_env)) ;;
+          trace ("  Γg:"^print_guarded_env Σ G.(guarded_env)) ;;
+          trace ("  stack("^(string_of_nat #|stack|)^"): "^print_stack Σ stack) ;;
+          trace ("  rs("^(string_of_nat #|rs|)^"): "^print_rs Σ rs) ;;
           check_rec_call_stack G stack rs body
-      | [] => check_rec_call_stack (push_var_guard_env G (redex_level rs) x ty) [] rs body
+      | [] =>
+          (* we don't have specs from the arguments to infer from *)
+          trace "pushing the bound variable into the context as internally bound subterm" ;;
+          check_rec_call_stack (push_var_guard_env G (redex_level rs) x ty) [] rs body
       end
 
   | tProd x ty body => 
@@ -1470,14 +1500,14 @@ Fixpoint check_rec_call_stack G (stack : list stack_element) (rs : list fix_chec
         end)
 
   | tVar _ => ret rs
-  (* FIXME: do vars work in MR? *)
+  (* FIXME: do vars work in MC? *)
   (* | tVar id => 
       check_rec_call_state G NoNeedReduce stack rs (fun tt =>
         entry <- except (OtherErr "check_rec_call_stack" "unknown variable") $
-          find (fun ctx_decl => ctx_decl.(decl_name) == id) G.(loc_env);;
+          find (fun ctx_decl => string_of_name ctx_decl.(decl_name).(binder_name) == id) G.(loc_env);;
         match entry.(decl_body) with
-        | None => None
-        | Some t => Some (t, [])
+        | None => raise $ OtherErr "check_rec_call_stack :: tVar" (id^" not found in context")
+        | Some t => ret (t, [])
         end) *)
    
   | tLetIn x c t b =>
@@ -1595,7 +1625,8 @@ with check_rec_call G rs c {struct rs} : exc (fix_check_result * list fix_check_
 Definition check_one_fix G (def : term) : exc unit :=
   trace $ "check_one_fix :: " ^ print_term Σ G.(loc_env) def ;;
   '(needreduce, rs) <- check_rec_call G [] def ;;
-  _ <- assert (#|rs| == 0) (OtherErr "check_one_fix" "check_rec_call doesn't clear the redex stack") ;;
+  trace $ print_rs Σ rs ;;
+  assert (#|rs| == 0) (OtherErr "check_one_fix" "check_rec_call doesn't clear the redex stack") ;;
   match needreduce with 
   | NeedReduce Γ e => raise (GuardErr "check_one_fix" "" e)
   | NoNeedReduce => ret tt
