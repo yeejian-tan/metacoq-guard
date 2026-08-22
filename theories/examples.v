@@ -45,18 +45,17 @@ Inductive list (X : Type) :=
 | nil : list X
 | cons : X -> list X -> list X. 
 
-corresponds to
+corresponds to (edited after Rocq commit 5a2b4dc)
 <<
                 Rec 0 
                  | 
               (* list *)
           Node (Mrec list_ind)
-        /                           \
-    (* nil *)                     (* cons *)
-    Node Norec                   Node Norec
-                            /             \
-                        (* x : X *)   (*l : list X *)
-                        Node Norec    Param 0 0
+        /                   \
+    (* nil *)            (* cons *)
+        []           /                 \
+                 (* x : X *)       (*l : list X *)
+              [ Node Norec []   ;     Param 0 0 ]
   >>
 
 A recursive tree always contains the trees for a whole mutual inductive block
@@ -70,6 +69,9 @@ Each of the node for the mutually defined types is annotated with the name of
 the inductive and has children for each of the constructors. The nodes for the
 constructors are not annotated with anything useful, the Norec does not mean
 anything.
+After commit 5a2b4dc: the superflous Norec for each constructor is removed;
+so now each inductive type has a (list (list rtree)) as children,
+containing the ((rtree for each argument) for each constructor).
 
 Each of the nodes for the constructors has children for each of the
 non-parametric arguments. The [nil] constructor obviously has no children. The
@@ -110,9 +112,8 @@ MetaRocq Run (check_inductive (Some "B_tree") B).
                  | 
             Node (Mrec list_ind)
         /                           \
-    Node Norec                   Node Norec
-                                /             \
-                            Node Norec    Param 0 0
+       []                     /             \
+                            [Node Norec ;  Param 0 0]
   >>
 
   is turned into
@@ -122,10 +123,9 @@ MetaRocq Run (check_inductive (Some "B_tree") B).
                  | 
             Node (Imbr list_ind)
         /                           \
-    Node Norec                   Node Norec
-                                /             \
+       []                       /             \
                           (* r : rtree *)     (* l : list rtree *)
-                            Param 1 0      Param 0 0
+                          [ Param 1 0     ;     Param 0 0 ]
 
   >>
   where the Param 1 0 references the node for [rtree] on the outside (we have to skip over the [Rec] for the inner list type).
@@ -135,8 +135,6 @@ MetaRocq Run (check_inductive (Some "B_tree") B).
               Rec 0
                 |
         Node (Mrec rtree_ind)
-                | 
-            Node Norec
                 | 
   [the instantiated tree for list] 
   >>
