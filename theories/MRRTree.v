@@ -74,6 +74,7 @@ Definition rtree_lift n t := if n =? 0 then t else lift_rtree_rec 0 n t.
 
 (* The usual subst operation *)
 (* substitute the depth -th unbound type by sub *)
+(* Actually implemented with the Esubst module. *)
 Fixpoint subst_rtree_rec depth sub t :=
   match t with
   | Var i j as t =>
@@ -86,10 +87,12 @@ Fixpoint subst_rtree_rec depth sub t :=
   end.
 
 (* substitute the innermost unbound by sub *)
+(* Actually implemented with the Esubst module. *)
 Definition subst_rtree sub t := subst_rtree_rec 0 sub t.
 
 (* To avoid looping, we must check that every body introduces a node
    or a parameter *)
+(* Actually implemented with the Esubst module. *)
 Fixpoint expand t :=
   match t with
   | Rec j defs => expand (subst_rtree defs (nth j defs default_tree)) (* substitute by the j-th inductive type declared here *)
