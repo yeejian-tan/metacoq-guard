@@ -68,10 +68,11 @@ Definition print_natset l := "{"^print_list string_of_nat ", " (Natset.elements 
    - Dead_code: when the term has been built by elimination over an empty type. Is also used for evars.
  *) 
 Inductive subterm_spec := 
-  | Subterm (l : Natset.t) (s : size) (r : wf_paths)
   | Dead_code
-  | Not_subterm
-  | Internally_bound_subterm (l : Natset.t). 
+  | Vars (l : Natset.t)
+  (* TODO: put (l : Natset.t) as the last field *)
+  | Subterm (l : Natset.t) (s : size) (r : wf_paths)
+  | Not_subterm.
 
 Definition subterm_spec_eqb (s1 s2 : subterm_spec) := 
   match s1, s2 with
@@ -79,7 +80,7 @@ Definition subterm_spec_eqb (s1 s2 : subterm_spec) :=
   | Not_subterm, Not_subterm => true
   | Subterm l1 size1 tree1, Subterm l2 size2 tree2 => 
       (l1 == l2) && (size1 == size2) && (tree1 == tree2)
-  | Internally_bound_subterm l1, Internally_bound_subterm l2 =>
+  | Vars l1, Vars l2 =>
       (l1 == l2)
   | _, _ => false
   end.
@@ -109,7 +110,6 @@ Fixpoint print_wf_paths Σ (t : wf_paths) :=
   | Rec i l => "Rec " ++ string_of_nat i ++ " (" ++ print_list (print_wf_paths Σ) ";" l ++ ")"
   end.
 
-
 Definition print_size s := 
   match s with
   | Large => "Large"
@@ -121,7 +121,7 @@ Definition print_subterm_spec Σ (s : subterm_spec) :=
   | Subterm l s paths => "Subterm "^(print_natset l)^" " ++ print_size s (*++ " (" ++ print_wf_paths Σ paths ++ ")"*)
   | Dead_code => "Dead_code"
   | Not_subterm => "Not_subterm"
-  | Internally_bound_subterm l => "IB "^(print_natset l)
+  | Vars l => "IB "^(print_natset l)
   end.
 
 Definition print_guarded_env Σ guarded_env := print_list (print_subterm_spec Σ) "|" guarded_env.
@@ -155,9 +155,9 @@ Definition inter_spec s1 s2 : exc subterm_spec :=
   | Dead_code, _ => ret s2
   | Not_subterm, _ => ret s1
   | _, Not_subterm => ret s2
-  | Internally_bound_subterm l1, Internally_bound_subterm l2 => ret (Internally_bound_subterm (merge_internal_subterms l1 l2))
-  | Subterm l1 a1 t1, Internally_bound_subterm l2 => ret (Subterm (merge_internal_subterms l1 l2) a1 t1)
-  | Internally_bound_subterm l1, Subterm l2 a2 t2 => ret (Subterm (merge_internal_subterms l1 l2) a2 t2)
+  | Vars l1, Vars l2 => ret (Vars (merge_internal_subterms l1 l2))
+  | Subterm l1 a1 t1, Vars l2 => ret (Subterm (merge_internal_subterms l1 l2) a1 t1)
+  | Vars l1, Subterm l2 a2 t2 => ret (Subterm (merge_internal_subterms l1 l2) a2 t2)
   | Subterm l1 a1 t1, Subterm l2 a2 t2 =>
       inter <- except (OtherErr "inter_spec" "inter_wf_paths failed: empty intersection") $ inter_wf_paths t1 t2;;
       ret $ Subterm (merge_internal_subterms l1 l2) (size_glb a1 a2) inter
@@ -241,7 +241,7 @@ Definition update_guard_spec G i new_spec :=
   |}.
 
 Definition push_var_guard_env G n na ty :=
-  let spec := if Nat.leb 1 n then Internally_bound_subterm (Natset.singleton n) else Not_subterm in
+  let spec := if Nat.leb 1 n then Vars (Natset.singleton n) else Not_subterm in
   push_var G (na, ty, spec).
 
 (** YJ: is it safe to None => Not_subterm since initialization yields
@@ -457,7 +457,7 @@ Definition branches_binders_specif Σ G (discriminant_spec : subterm_spec) (ind 
           trees <- unwrap $ map spec_of_tree args_sizes;;
           ret trees
     (* for the other cases, just propagate the discriminant_spec *)
-    | Dead_code | Not_subterm | Internally_bound_subterm _ =>
+    | Dead_code | Not_subterm | Vars _ =>
         ret $ tabulate (fun _ => discriminant_spec) ar
     end
     ) constr_arities.
@@ -485,7 +485,7 @@ Definition branches_specif Σ G (discriminant_spec : subterm_spec) (ind : induct
            trees <- wf_paths_all_constr_args_sizes tree;; (* list (list wf_paths) *)
           ret $ inl trees
     (* for the other cases, just propagate the discriminant_spec *)
-    | Dead_code | Not_subterm | Internally_bound_subterm _ => ret $ inr discriminant_spec
+    | Dead_code | Not_subterm | Vars _ => ret $ inr discriminant_spec
     end;;
   res <- match all_constr_args_sizes with
     | inr spec =>
@@ -787,7 +787,7 @@ Definition get_recargs_approx Σ ρ Γ (tree : wf_paths) (ind : inductive) (args
  *)
 Definition restrict_spec_for_match Σ ρ Γ spec (rtf : term) : exc subterm_spec := 
   match spec with
-  | Not_subterm | Internally_bound_subterm _ => ret spec
+  | Not_subterm | Vars _ => ret spec
   | _ => 
     '(rtf_context, rtf) <- decompose_lam_assum Σ Γ rtf;;
     (* if the return-type function is not dependent, no restriction is needed *)
@@ -931,7 +931,7 @@ Fixpoint subterm_specif Σ ρ G (stack : list stack_element) t {struct t}: exc s
             nth_error arg_trees proj_arg;;
             (** make a spec out of it *)
           spec_of_tree proj_arg_tree
-      | Dead_code | Not_subterm | Internally_bound_subterm _ => ret t_spec
+      | Dead_code | Not_subterm | Vars _ => ret t_spec
       end
   | _ => ret Not_subterm
   end
@@ -955,7 +955,7 @@ with extract_stack_hd Σ ρ stack {struct stack} : exc (subterm_spec * list stac
   end.
 
 Definition set_iota_specif (nr : nat) spec := match spec with
-  | Not_subterm => if Nat.leb 1 nr then Internally_bound_subterm (Natset.singleton nr) else Not_subterm
+  | Not_subterm => if Nat.leb 1 nr then Vars (Natset.singleton nr) else Not_subterm
   | spec => spec
   end.
 
@@ -966,7 +966,7 @@ Definition illegal_rec_call G fixpt elt := match elt with
         List.fold_left (fun '(i, le, lt) sbt => match sbt with
           | Subterm _ Strict _ | Dead_code           => (S i, le,    i::lt)
           | Subterm _ Large _                        => (S i, i::le, lt)
-          | Internally_bound_subterm _ | Not_subterm => (S i, le,    lt)
+          | Vars _ | Not_subterm => (S i, le,    lt)
           end) G.(guarded_env) (1, [], [])
       in (le_vars, lt_vars)
     in RecursionOnIllegalTerm fixpt (G_arg.(loc_env), arg) le_lt_vars
@@ -998,7 +998,7 @@ Definition check_is_subterm spec tree :=
       (** [spec] been constructed by elimination of an empty type, so this is fine *)
       NeedReduceSubterm Natset.empty
   | Not_subterm | Subterm _ Large _ => InvalidSubterm
-  | Internally_bound_subterm l => NeedReduceSubterm l
+  | Vars l => NeedReduceSubterm l
   end.
 
 Definition print_check_subterm_result res := match res with
@@ -1054,7 +1054,7 @@ Definition filter_stack_domain Σ ρ Γ nr (rtf : term) (stack : list stack_elem
               spec' <- stack_element_specif Σ ρ elem;;
               trace $ "result: " ^ print_subterm_spec Σ spec' ;;
               sarg <- match spec' with 
-                | Not_subterm | Dead_code | Internally_bound_subterm _ => trace "not a subterm" ;; ret spec'
+                | Not_subterm | Dead_code | Vars _ => trace "not a subterm" ;; ret spec'
                 | Subterm l s path =>
                     trace "a subterm, we need to intersect" ;;
                     (** intersect with an approximation of the unfolded tree for [ind] *)

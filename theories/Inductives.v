@@ -673,30 +673,22 @@ Definition pathsEnv := list (kername * list wf_paths).
 Implicit Type (ρ : pathsEnv).
 
 (** Lookup the wf_paths for an inductive [i]. *)
-Definition lookup_paths ρ (i : inductive) := 
+Definition lookup_subterms ρ (i : inductive) := 
   match lookup eqb i.(inductive_mind) ρ with
   | Some paths => nth_error paths i.(inductive_ind) 
   | None => None
   end.
 
-Definition lookup_paths_all ρ (i : inductive) := 
+Definition lookup_mutual_subterms ρ (i : inductive) := 
   lookup eqb i.(inductive_mind) ρ.
-
 
 (** In contrast to the Boolean equality decider we get by eqb, this also checks equivalence if structural equality is failing by unfolding the recursive trees. *)
 Definition eq_wf_paths a b := rtree_equal (eqb (A := recarg)) a b.
 
 (** Join the recarg info if compatible. *)
+(* counterpart: [meet_recarg] *)
 Definition inter_recarg r1 r2 := 
-  if (eqb (A := recarg)) r1 r2 then Some r1 else None.
-  (* match r1, r2 with
-  | Norec, Norec => Some Norec
-  | Mrec i1, Mrec i2
-  | Imbr i1, Imbr i2
-  | Mrec i1, Imbr i2 => if i1 == i2 then Some r1 else None (* intersection is an Mrec, not an Imbr, if one is an Mrec *)
-  | Imbr i1, Mrec i2 => if i1 == i2 then Some r2 else None
-  | _, _ => None
-  end. *)
+  if eqb (A := recarg) r1 r2 then Some r1 else None.
 
 (** *** Operations on recursive arguments trees *)
 

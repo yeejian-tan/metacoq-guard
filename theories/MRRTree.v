@@ -85,6 +85,7 @@ Fixpoint subst_rtree_rec depth sub t :=
   | Node l children => Node l (map (map (subst_rtree_rec depth sub)) children)
   | Rec j defs => Rec j (map (subst_rtree_rec (S depth) sub) defs)
   end.
+Check subst_rtree_rec.
 
 (* substitute the innermost unbound by sub *)
 (* Actually implemented with the Esubst module. *)
